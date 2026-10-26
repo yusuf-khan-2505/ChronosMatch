@@ -38,3 +38,27 @@ sequence number, side, price in integer ticks, quantity, and producer timestamp 
 
 ## Scope and next steps
 This version uses one producer and one consumer in a single process for portability. The mmap file can be shared by processes on the same host, but a truly safe multi-process ring buffer needs explicit inter-process synchronization and crash recovery. For a stronger version, add a Cython/Rust matching core, a sequence-number protocol for lock-free slots, real feed adapters, and extensive correctness/latency testing.
+## Original Project — Successful Execution
+
+The original ChronosMatch simulation successfully processed
+10,000 orders with zero dropped orders in the recorded run.
+
+### Execution Screenshot
+
+![ChronosMatch Execution](Screenshot%202026-10-26%20193005.png)
+![ChronosMatch Execution](Screenshot%202026-10-26%20193118.png)
+
+### Performance Results
+
+- Orders processed: 10,000
+- Orders dropped: 0
+- Throughput: 36,551 orders/second
+- Units filled: 47,795
+- Trades executed: 8,666
+- Matched quantity: 47,795
+- Best bid: 99,996
+- Best ask: 100,002
+- Bid-ask spread: 6
+
+See [EXECUTION_RESULTS.md](EXECUTION_RESULTS.md) for
+the detailed performance metrics.
