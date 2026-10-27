@@ -77,4 +77,4 @@ def parse_args():
 
 
 if __name__ == "__main__":
-    asyncio.run(run(parse_args(1)))
+    asyncio.run(run(parse_args()))
