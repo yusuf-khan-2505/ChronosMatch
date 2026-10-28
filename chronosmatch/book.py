@@ -9,7 +9,7 @@ import heapq
 class Order:
     order_id: int
     side: int  # 0=BUY, 1=SELL
-    price: int  # integer ticks, not floating point
+    price: double  # integer ticks, not floating point
     quantity: int
     timestamp_ns: int
 
