@@ -1,49 +1,42 @@
 #!/usr/bin/env python3
-"""ChronosMatch: local educational trading-engine simulation."""
+"""ChronosMatch: educational low-latency trading-engine simulation."""
 import argparse
 import asyncio
 import time
-
 from chronosmatch.book import LimitOrderBook, Order
+from chronosmatch.dashboard import draw_dashboard
 from chronosmatch.ipc import MMapRingBuffer
 from chronosmatch.metrics import Metrics
 from chronosmatch.simulator import produce_orders
 
-
-async def consume_orders(ring, book, metrics, expected_count):
+async def consume_orders(ring, book, metrics, expected_count, dashboard, started_at):
     processed = 0
+    last_dashboard = time.perf_counter()
     while processed < expected_count:
         item = ring.get()
         if item is None:
             await asyncio.sleep(0)
             continue
         seq, side, price, quantity, timestamp_ns = item
-        order = Order(seq, side, price, quantity, timestamp_ns)
-        filled = book.process(order)
+        filled = book.process(Order(seq, side, price, quantity, timestamp_ns))
         metrics.record(timestamp_ns, filled)
         processed += 1
-        if processed % 10000 == 0:
-            print(f"\rProcessed {processed:,}/{expected_count:,} orders...", end="", flush=True)
-    if expected_count >= 10000:
-        print()
-
+        now = time.perf_counter()
+        if dashboard and (processed == expected_count or processed % 250 == 0 or now - last_dashboard >= 0.25):
+            draw_dashboard(processed, expected_count, metrics, book, started_at)
+            last_dashboard = now
+    return processed
 
 async def run(args):
-    book = LimitOrderBook()
-    metrics = Metrics()
+    book, metrics = LimitOrderBook(), Metrics()
+    started_at = time.perf_counter()
     with MMapRingBuffer(capacity=args.capacity) as ring:
-        producer = asyncio.create_task(
-            produce_orders(ring, args.orders, args.rate, seed=args.seed)
-        )
-        consumer = asyncio.create_task(
-            consume_orders(ring, book, metrics, args.orders)
-        )
+        producer = asyncio.create_task(produce_orders(ring, args.orders, args.rate, seed=args.seed))
+        consumer = asyncio.create_task(consume_orders(ring, book, metrics, args.orders, not args.no_dashboard, started_at))
         await asyncio.gather(producer, consumer)
         dropped = ring.dropped
-
-    report = metrics.report()
-    snap = book.snapshot()
-    print("\n=== ChronosMatch Results ===")
+    report, snap = metrics.report(), book.snapshot()
+    print("\n=== ChronosMatch Final Results ===")
     print(f"Orders processed       : {report['processed']:,}")
     print(f"Orders dropped         : {dropped:,}")
     print(f"Elapsed time           : {report['elapsed_s']:.4f} s")
@@ -55,12 +48,11 @@ async def run(args):
     print(f"Units filled           : {report['filled_units']:,}")
     print(f"Trade matches          : {snap['trades']:,}")
     print(f"Matched quantity       : {snap['trade_quantity']:,}")
-    print(f"Best bid (ticks)       : {snap['best_bid']}")
-    print(f"Best ask (ticks)       : {snap['best_ask']}")
+    print(f"Best bid / ask (ticks) : {snap['best_bid']} / {snap['best_ask']}")
     print(f"Spread (ticks)         : {snap['spread']}")
-    print(f"Last trade (ticks)     : {snap['last_trade_price']}")
-    print(f"Bid / ask levels       : {snap['bid_levels']} / {snap['ask_levels']}")
-
+    if args.csv:
+        metrics.save_csv(args.csv)
+        print(f"Latency CSV saved      : {args.csv}")
 
 def parse_args():
     parser = argparse.ArgumentParser(description="ChronosMatch local trading-engine prototype")
@@ -68,13 +60,12 @@ def parse_args():
     parser.add_argument("--rate", type=int, default=0, help="approximate producer rate (orders/s); 0 means unpaced")
     parser.add_argument("--capacity", type=int, default=65536, help="mmap ring capacity (power of two)")
     parser.add_argument("--seed", type=int, default=7, help="random seed for repeatable simulation")
+    parser.add_argument("--no-dashboard", action="store_true", help="disable live terminal dashboard")
+    parser.add_argument("--csv", default="", help="optional path for per-order latency CSV output")
     args = parser.parse_args()
-    if args.orders < 1:
-        parser.error("--orders must be >= 1")
-    if args.rate < 0:
-        parser.error("--rate must be >= 0")
+    if args.orders < 1: parser.error("--orders must be >= 1")
+    if args.rate < 0: parser.error("--rate must be >= 0")
     return args
-
 
 if __name__ == "__main__":
     asyncio.run(run(parse_args()))

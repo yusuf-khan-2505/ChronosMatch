@@ -1,24 +1,19 @@
-"""Fixed-record mmap ring buffer for the local ChronosMatch prototype."""
+"""Fixed-record mmap ring buffer for a single-process producer/consumer demo."""
 from __future__ import annotations
 import mmap
 import os
-import struct
 import tempfile
 from pathlib import Path
 from typing import Optional
+import struct
 
-# seq:uint64, side:uint8 (0=BUY, 1=SELL), price_ticks:uint64,
-# quantity:uint32, timestamp_ns:uint64
+# sequence:uint64, side:uint8 (0=BUY, 1=SELL), price_ticks:uint64,
+# quantity:uint32, producer_timestamp_ns:uint64
 RECORD = struct.Struct("<QBQIQ")
 RECORD_SIZE = RECORD.size
 
-
 class MMapRingBuffer:
-    """Single-process producer/consumer ring buffer backed by an mmap file.
-
-    This implementation is intentionally simple and not lock-free or safe for
-    unsynchronized multiple processes. It uses a shared cursor in Python.
-    """
+    """Memory-mapped ring buffer. This demo is NOT a lock-free multi-process queue."""
     def __init__(self, capacity: int = 65536, path: Optional[str] = None):
         if capacity < 2 or capacity & (capacity - 1):
             raise ValueError("capacity must be a power of two and >= 2")
@@ -36,8 +31,7 @@ class MMapRingBuffer:
         self._read_seq = 0
         self.dropped = 0
 
-    def put(self, seq: int, side: int, price_ticks: int,
-            quantity: int, timestamp_ns: int) -> bool:
+    def put(self, seq: int, side: int, price_ticks: int, quantity: int, timestamp_ns: int) -> bool:
         if self._write_seq - self._read_seq >= self.capacity:
             self.dropped += 1
             return False
@@ -68,8 +62,5 @@ class MMapRingBuffer:
                 except OSError:
                     pass
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_):
-        self.close()
+    def __enter__(self): return self
+    def __exit__(self, *_): self.close()
