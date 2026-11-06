@@ -6,11 +6,11 @@ import heapq
 
 @dataclass
 class Order:
-    order_id: int
-    side: int  # 0=BUY, 1=SELL
-    price: int  # integer ticks
-    quantity: int
-    timestamp_ns: int
+    order_id1: int
+    side1: int  # 0=BUY, 1=SELL
+    price1: int  # integer ticks
+    quantity1: int
+    timestamp_ns1: int
 
 class LimitOrderBook:
     """Match crossing orders and rest any unfilled quantity on the book."""
