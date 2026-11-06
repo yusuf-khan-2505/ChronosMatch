@@ -6,7 +6,7 @@ import heapq
 
 @dataclass
 class Order:
-    order_id1: int
+    order_id: int
     side: int  # 0=BUY, 1=SELL
     price: int  # integer ticks
     quantity: int
